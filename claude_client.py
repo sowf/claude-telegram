@@ -82,6 +82,64 @@ class ClaudeClient:
         self.conversation_manager = ConversationManager()
         logger.info(f"Initialized Claude client with model: {Config.CLAUDE_MODEL}")
     
+    async def send_message_with_image(self, user_id: int, message: str, image_base64: str, media_type: str) -> str:
+        """Send a message with image to Claude.
+        
+        Args:
+            user_id: Telegram user ID
+            message: User's message
+            image_base64: Base64 encoded image
+            media_type: Image media type (e.g., 'image/jpeg')
+            
+        Returns:
+            Claude's response text
+        """
+        try:
+            # Добавляем сообщение с изображением в контекст
+            self.conversation_manager.add_message(user_id, "user", message)
+            
+            # Формируем сообщение с изображением
+            messages = self.conversation_manager.get_context(user_id)[:-1]  # Все кроме последнего
+            messages.append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": image_base64,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": message
+                    }
+                ]
+            })
+            
+            logger.info(f"Sending message with image to Claude for user {user_id}")
+            
+            # Вызов Claude API
+            response = self.client.messages.create(
+                model=Config.CLAUDE_MODEL,
+                max_tokens=Config.MAX_TOKENS,
+                messages=messages
+            )
+            
+            response_text = response.content[0].text
+            
+            # Добавляем ответ в контекст
+            self.conversation_manager.add_message(user_id, "assistant", response_text)
+            
+            logger.info(f"Received response from Claude for user {user_id}")
+            
+            return response_text
+            
+        except Exception as e:
+            logger.error(f"Error calling Claude API with image for user {user_id}: {e}")
+            raise
+    
     async def send_message(self, user_id: int, message: str) -> str:
         """Send a message to Claude and get response.
         

@@ -1,6 +1,8 @@
 """Telegram bot that proxies requests to Claude API."""
 import logging
 import sys
+import base64
+import io
 from typing import Optional
 from telegram import Update, BotCommand
 from telegram.ext import (
@@ -47,6 +49,12 @@ class TelegramClaudeBot:
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
+        )
+        self.application.add_handler(
+            MessageHandler(filters.PHOTO, self.handle_photo)
+        )
+        self.application.add_handler(
+            MessageHandler(filters.Document.ALL, self.handle_document)
         )
         logger.info("Handlers registered")
     
@@ -214,6 +222,104 @@ class TelegramClaudeBot:
             )
             await update.message.reply_text(error_message)
             logger.error(f"Error processing message from user {user.id}: {e}", exc_info=True)
+    
+    async def handle_photo(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle photos."""
+        if not self._is_authorized(update):
+            await update.message.reply_text("❌ Access denied.")
+            return
+        
+        user = update.effective_user
+        logger.info(f"Received photo from @{user.username} (ID: {user.id})")
+        
+        await update.message.chat.send_action(action="typing")
+        
+        try:
+            # Получаем фото (самое большое)
+            photo = update.message.photo[-1]
+            photo_file = await photo.get_file()
+            
+            # Скачиваем как bytes
+            photo_bytes = await photo_file.download_as_bytearray()
+            
+            # Конвертируем в base64
+            photo_base64 = base64.b64encode(bytes(photo_bytes)).decode('utf-8')
+            
+            # Получаем caption или используем дефолтный вопрос
+            caption = update.message.caption or "Что на этой картинке?"
+            
+            # Отправляем в Claude с изображением
+            response = await self.claude_client.send_message_with_image(
+                user.id, 
+                caption, 
+                photo_base64,
+                "image/jpeg"
+            )
+            
+            # Отправляем ответ
+            if len(response) <= 4096:
+                await update.message.reply_text(response)
+            else:
+                chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
+                for chunk in chunks:
+                    await update.message.reply_text(chunk)
+            
+            logger.info(f"Sent photo response to @{user.username} (ID: {user.id})")
+            
+        except Exception as e:
+            error_message = f"❌ Ошибка обработки изображения: {str(e)}"
+            await update.message.reply_text(error_message)
+            logger.error(f"Error processing photo from user {user.id}: {e}", exc_info=True)
+    
+    async def handle_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle documents."""
+        if not self._is_authorized(update):
+            await update.message.reply_text("❌ Access denied.")
+            return
+        
+        user = update.effective_user
+        document = update.message.document
+        
+        logger.info(f"Received document from @{user.username} (ID: {user.id}): {document.file_name}")
+        
+        # Проверяем размер (макс 20MB)
+        if document.file_size > 20 * 1024 * 1024:
+            await update.message.reply_text("❌ Файл слишком большой (макс 20MB)")
+            return
+        
+        await update.message.chat.send_action(action="typing")
+        
+        try:
+            doc_file = await document.get_file()
+            doc_bytes = await doc_file.download_as_bytearray()
+            
+            # Пытаемся декодировать как текст
+            try:
+                text_content = bytes(doc_bytes).decode('utf-8')
+                
+                caption = update.message.caption or f"Проанализируй этот файл: {document.file_name}"
+                full_message = f"{caption}\n\n```\n{text_content}\n```"
+                
+                response = await self.claude_client.send_message(user.id, full_message)
+                
+                if len(response) <= 4096:
+                    await update.message.reply_text(response)
+                else:
+                    chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
+                    for chunk in chunks:
+                        await update.message.reply_text(chunk)
+                
+                logger.info(f"Sent document response to @{user.username} (ID: {user.id})")
+                
+            except UnicodeDecodeError:
+                await update.message.reply_text(
+                    "❌ Не могу прочитать файл как текст. Поддерживаются только текстовые файлы (.txt, .py, .js, и т.д.)"
+                )
+        
+        except Exception as e:
+            error_message = f"❌ Ошибка обработки файла: {str(e)}"
+            await update.message.reply_text(error_message)
+            logger.error(f"Error processing document from user {user.id}: {e}", exc_info=True)
     
     def run(self) -> None:
         """Start the bot."""

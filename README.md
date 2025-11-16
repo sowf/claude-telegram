@@ -41,12 +41,20 @@ python bot.py
 
 - `/start` - начало работы
 - `/clear` - очистить контекст
-- `/enable_context` - включить контекст (по умолчанию)
-- `/disable_context` - отключить контекст (каждое сообщение отдельно)
-- `/system_prompt <текст>` - установить системный промпт
-- `/reset_system_prompt` - сбросить промпт
-- `/info` - информация о модели и текущей сессии
 - `/help` - справка
+
+## Работа с файлами
+
+**Картинки:**
+- Отправь фото в чат
+- Добавь описание (caption) или просто отправь - бот опишет картинку
+- Поддерживаются: JPG, PNG, GIF, WebP
+
+**Текстовые файлы:**
+- Отправь документ (.txt, .py, .js, .md, и т.д.)
+- Добавь вопрос в описании файла
+- Макс размер: 20MB
+- Бот прочитает и проанализирует содержимое
 
 ## Деплой на VPS
 
@@ -82,10 +90,34 @@ sudo journalctl -u claude-telegram-bot -f    # Логи
 nano ~/claude-telegram/.env
 
 # Перезапусти бота
-sudo systemctl restart claude-telegram-bot
+systemctl restart claude-telegram-bot
 
 # Проверь логи
-sudo journalctl -u claude-telegram-bot -f
+journalctl -u claude-telegram-bot -f
+```
+
+### Обновление бота
+
+```bash
+# На локале: скопируй обновленные файлы
+scp -r *.py *.txt *.sh Makefile systemd/ root@server:/root/claude-telegram/
+
+# На сервере: обнови зависимости (если requirements.txt изменился)
+cd /root/claude-telegram
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Перезапусти сервис
+systemctl restart claude-telegram-bot
+
+# Проверь статус
+systemctl status claude-telegram-bot
+journalctl -u claude-telegram-bot -f
+```
+
+**Быстрое обновление (одной командой):**
+```bash
+scp -r *.py *.txt root@server:/root/claude-telegram/ && ssh root@server "systemctl restart claude-telegram-bot"
 ```
 
 ## Docker
@@ -108,6 +140,8 @@ config.py          - Конфиг из .env
 - Контекст в памяти (на пользователя)
 - Авторизация по whitelist username
 - Автосплит длинных ответов
+- **Работа с изображениями** (PNG, JPG, GIF, WebP)
+- **Работа с текстовыми файлами** (.txt, .py, .js, и т.д.)
 - Type hints, docstrings
 - Логирование
 
