@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  claude-telegram-bot:
+    build: .
+    container_name: claude-telegram-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # Mount logs directory (optional)
+      - ./logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # No ports needed - bot uses Telegram API polling
+

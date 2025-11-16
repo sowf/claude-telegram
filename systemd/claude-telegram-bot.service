@@ -1,0 +1,21 @@
+[Unit]
+Description=Claude Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+# Пользователь будет установлен при установке (замените на вашего пользователя)
+User=%u
+WorkingDirectory=%h/claude-telegram
+Environment="PATH=%h/claude-telegram/venv/bin"
+ExecStart=%h/claude-telegram/venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=append:/var/log/claude-telegram-bot/bot.log
+StandardError=append:/var/log/claude-telegram-bot/error.log
+
+[Install]
+WantedBy=multi-user.target
+
