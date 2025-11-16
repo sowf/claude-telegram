@@ -16,26 +16,27 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-CURRENT_USER=$(whoami)
-APP_DIR="$HOME/claude-telegram"
+if [ "$EUID" -eq 0 ]; then
+    # Running as root
+    CURRENT_USER="root"
+    APP_DIR="/root/claude-telegram"
+else
+    # Running as regular user
+    CURRENT_USER=$(whoami)
+    APP_DIR="$HOME/claude-telegram"
+fi
+
 SERVICE_NAME="claude-telegram-bot"
 LOG_DIR="/var/log/claude-telegram-bot"
 
-# Check if running as root
-if [ "$EUID" -eq 0 ]; then
-    echo -e "${RED}Please do not run this script as root or with sudo${NC}"
-    echo "The script will ask for sudo password when needed"
-    exit 1
-fi
-
 # Update system packages
 echo -e "${YELLOW}Updating system packages...${NC}"
-sudo apt-get update
-sudo apt-get upgrade -y
+apt-get update
+apt-get upgrade -y
 
 # Install Python 3 and pip
 echo -e "${YELLOW}Installing Python 3 and dependencies...${NC}"
-sudo apt-get install -y python3 python3-pip python3-venv
+apt-get install -y python3 python3-pip python3-venv
 
 # Create application directory if it doesn't exist
 if [ ! -d "$APP_DIR" ]; then
@@ -69,8 +70,8 @@ fi
 
 # Create log directory
 echo -e "${YELLOW}Creating log directory...${NC}"
-sudo mkdir -p "$LOG_DIR"
-sudo chown $CURRENT_USER:$CURRENT_USER "$LOG_DIR"
+mkdir -p "$LOG_DIR"
+chown $CURRENT_USER:$CURRENT_USER "$LOG_DIR"
 
 # Setup systemd service (update User and paths)
 echo -e "${YELLOW}Setting up systemd service...${NC}"
@@ -99,17 +100,17 @@ WantedBy=multi-user.target
 EOF
 
 # Install service
-sudo mv /tmp/claude-telegram-bot.service /etc/systemd/system/
-sudo systemctl daemon-reload
+mv /tmp/claude-telegram-bot.service /etc/systemd/system/
+systemctl daemon-reload
 
 # Enable and start service
 echo -e "${YELLOW}Enabling and starting service...${NC}"
-sudo systemctl enable "$SERVICE_NAME"
-sudo systemctl restart "$SERVICE_NAME"
+systemctl enable "$SERVICE_NAME"
+systemctl restart "$SERVICE_NAME"
 
 # Check service status
 echo -e "${GREEN}Checking service status...${NC}"
-sudo systemctl status "$SERVICE_NAME" --no-pager
+systemctl status "$SERVICE_NAME" --no-pager
 
 echo ""
 echo -e "${GREEN}========================================"
@@ -117,10 +118,11 @@ echo "Deployment completed successfully!"
 echo -e "========================================${NC}"
 echo ""
 echo "Useful commands:"
-echo "  View logs:        sudo journalctl -u $SERVICE_NAME -f"
-echo "  Check status:     sudo systemctl status $SERVICE_NAME"
-echo "  Restart service:  sudo systemctl restart $SERVICE_NAME"
-echo "  Stop service:     sudo systemctl stop $SERVICE_NAME"
+echo "  View logs:        journalctl -u $SERVICE_NAME -f"
+echo "  Check status:     systemctl status $SERVICE_NAME"
+echo "  Restart service:  systemctl restart $SERVICE_NAME"
+echo "  Stop service:     systemctl stop $SERVICE_NAME"
+echo "  Edit config:      nano $APP_DIR/.env"
 echo ""
 echo "Log files location: $LOG_DIR"
 echo ""
