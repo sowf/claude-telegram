@@ -15,6 +15,19 @@ from telegram.ext import (
 from config import Config
 from claude_client import ClaudeClient
 
+# PDF и DOCX парсеры
+try:
+    from pypdf import PdfReader
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+
+try:
+    from docx import Document
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -293,28 +306,74 @@ class TelegramClaudeBot:
             doc_file = await document.get_file()
             doc_bytes = await doc_file.download_as_bytearray()
             
-            # Пытаемся декодировать как текст
-            try:
-                text_content = bytes(doc_bytes).decode('utf-8')
+            text_content = None
+            file_name = document.file_name.lower()
+            
+            # PDF файлы
+            if file_name.endswith('.pdf'):
+                if not PDF_AVAILABLE:
+                    await update.message.reply_text("❌ PDF не поддерживается (не установлен pypdf)")
+                    return
                 
-                caption = update.message.caption or f"Проанализируй этот файл: {document.file_name}"
-                full_message = f"{caption}\n\n```\n{text_content}\n```"
+                try:
+                    pdf_reader = PdfReader(io.BytesIO(bytes(doc_bytes)))
+                    text_content = ""
+                    for page in pdf_reader.pages:
+                        text_content += page.extract_text() + "\n"
+                    logger.info(f"Extracted {len(text_content)} chars from PDF")
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Ошибка чтения PDF: {str(e)}")
+                    return
+            
+            # DOCX файлы
+            elif file_name.endswith('.docx') or file_name.endswith('.doc'):
+                if not DOCX_AVAILABLE:
+                    await update.message.reply_text("❌ Word файлы не поддерживаются (не установлен python-docx)")
+                    return
                 
-                response = await self.claude_client.send_message(user.id, full_message)
-                
-                if len(response) <= 4096:
-                    await update.message.reply_text(response)
-                else:
-                    chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
-                    for chunk in chunks:
-                        await update.message.reply_text(chunk)
-                
-                logger.info(f"Sent document response to @{user.username} (ID: {user.id})")
-                
-            except UnicodeDecodeError:
-                await update.message.reply_text(
-                    "❌ Не могу прочитать файл как текст. Поддерживаются только текстовые файлы (.txt, .py, .js, и т.д.)"
-                )
+                try:
+                    doc = Document(io.BytesIO(bytes(doc_bytes)))
+                    text_content = "\n".join([para.text for para in doc.paragraphs])
+                    logger.info(f"Extracted {len(text_content)} chars from DOCX")
+                except Exception as e:
+                    await update.message.reply_text(f"❌ Ошибка чтения Word: {str(e)}")
+                    return
+            
+            # Текстовые файлы
+            else:
+                try:
+                    text_content = bytes(doc_bytes).decode('utf-8')
+                except UnicodeDecodeError:
+                    await update.message.reply_text(
+                        "❌ Не могу прочитать файл. Поддерживаются:\n"
+                        "- PDF (.pdf)\n"
+                        "- Word (.docx, .doc)\n"
+                        "- Текстовые (.txt, .py, .js, .md и т.д.)"
+                    )
+                    return
+            
+            # Проверяем что текст получен
+            if not text_content or not text_content.strip():
+                await update.message.reply_text("❌ Файл пустой или не удалось извлечь текст")
+                return
+            
+            # Ограничиваем размер (макс 100K символов для контекста)
+            if len(text_content) > 100000:
+                text_content = text_content[:100000] + "\n\n[... текст обрезан, слишком длинный]"
+            
+            caption = update.message.caption or f"Проанализируй этот файл: {document.file_name}"
+            full_message = f"{caption}\n\n```\n{text_content}\n```"
+            
+            response = await self.claude_client.send_message(user.id, full_message)
+            
+            if len(response) <= 4096:
+                await update.message.reply_text(response)
+            else:
+                chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
+                for chunk in chunks:
+                    await update.message.reply_text(chunk)
+            
+            logger.info(f"Sent document response to @{user.username} (ID: {user.id})")
         
         except Exception as e:
             error_message = f"❌ Ошибка обработки файла: {str(e)}"
