@@ -1,8 +1,13 @@
 """Claude API client with conversation management."""
 import logging
+import warnings
 from typing import Dict, List, Optional
 from anthropic import Anthropic
+import httpx
 from config import Config
+
+# Отключаем SSL warnings для self-signed сертификатов
+warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +76,9 @@ class ClaudeClient:
     
     def __init__(self):
         """Initialize the Claude client."""
-        self.client = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
+        # Отключаем проверку SSL (для self-signed сертификатов)
+        http_client = httpx.Client(verify=False)
+        self.client = Anthropic(api_key=Config.ANTHROPIC_API_KEY, http_client=http_client)
         self.conversation_manager = ConversationManager()
         logger.info(f"Initialized Claude client with model: {Config.CLAUDE_MODEL}")
     

@@ -2,7 +2,7 @@
 import logging
 import sys
 from typing import Optional
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -31,7 +31,12 @@ class TelegramClaudeBot:
     def __init__(self):
         """Initialize the bot."""
         self.claude_client = ClaudeClient()
-        self.application = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
+        self.application = (
+            Application.builder()
+            .token(Config.TELEGRAM_BOT_TOKEN)
+            .post_init(self._post_init)
+            .build()
+        )
         self._setup_handlers()
         logger.info("Bot initialized successfully")
     
@@ -66,6 +71,16 @@ class TelegramClaudeBot:
             logger.warning(f"Unauthorized access attempt by @{username} (ID: {update.effective_user.id})")
         
         return is_authorized
+    
+    async def _post_init(self, application: Application) -> None:
+        """Выполняется после инициализации бота."""
+        commands = [
+            BotCommand("start", "Начать работу"),
+            BotCommand("clear", "Очистить контекст диалога"),
+            BotCommand("help", "Помощь по боту"),
+        ]
+        await application.bot.set_my_commands(commands)
+        logger.info("Bot menu commands set")
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command.
