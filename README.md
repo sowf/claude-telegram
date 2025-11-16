@@ -72,6 +72,19 @@ sudo systemctl restart claude-telegram-bot   # Рестарт
 sudo journalctl -u claude-telegram-bot -f    # Логи
 ```
 
+### Изменение конфига
+
+```bash
+# Редактируй .env
+nano ~/claude-telegram/.env
+
+# Перезапусти бота
+sudo systemctl restart claude-telegram-bot
+
+# Проверь логи
+sudo journalctl -u claude-telegram-bot -f
+```
+
 ## Docker
 
 ```bash
