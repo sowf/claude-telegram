@@ -59,14 +59,15 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Create .env file if it doesn't exist
+# Check .env file
 if [ ! -f ".env" ]; then
-    echo -e "${YELLOW}Creating .env file...${NC}"
-    cp .env.example .env
-    echo -e "${RED}IMPORTANT: Please edit .env file with your credentials:${NC}"
-    echo "nano $APP_DIR/.env"
-    read -p "Press Enter after you've configured .env file..."
+    echo -e "${RED}ERROR: .env file not found!${NC}"
+    echo "Please copy your .env file to $APP_DIR/"
+    echo "Example: scp .env root@server:$APP_DIR/"
+    exit 1
 fi
+
+echo -e "${GREEN}.env file found${NC}"
 
 # Create log directory
 echo -e "${YELLOW}Creating log directory...${NC}"

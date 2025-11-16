@@ -51,11 +51,14 @@ python bot.py
 ## Деплой на VPS
 
 ```bash
-# Скопируй на сервер
-scp -r * user@server:~/claude-telegram/
+# Скопируй файлы на сервер
+scp -r * root@server:/root/claude-telegram/
+
+# Скопируй .env (он скрытый, * его не копирует)
+scp .env root@server:/root/claude-telegram/
 
 # На сервере
-cd ~/claude-telegram
+cd /root/claude-telegram
 ./deploy.sh
 ```
 
